@@ -2,6 +2,9 @@
 
 This repository contains a comprehensive, automated pipeline for estimating brain temperature from diffusion-weighted imaging (DWI) data, with a focus on the cerebrospinal fluid (CSF). The pipeline leverages tools from MRtrix3, FSL, and custom Python scripts to perform preprocessing, analysis, and quality control reporting.
 
+## 🆕 Version 2.0: Bi-exponential Diffusion Model
+The pipeline now includes an advanced bi-exponential diffusion model to address partial volume effects in CSF regions. This enhancement separates free water diffusion from tissue-contaminated signals, providing more accurate temperature estimates. See [CLAUDE.md](CLAUDE.md) for detailed documentation.
+
 It is designed to be run on a High-Performance Computing (HPC) cluster using the Portable Batch System (PBS) for job scheduling.
 
 ## Key Features
