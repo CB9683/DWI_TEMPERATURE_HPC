@@ -107,4 +107,28 @@ for i in $(seq 0 $((TOTAL_BVAL_SETS - 1))); do
     fi
 done
 
+# Run DTI fitting if enabled in config
+DTI_ENABLED=$(python -c "import json; cfg=json.load(open('${CONFIG_FILE}')); print(cfg.get('processing',{}).get('biexponential_model',{}).get('fit_dti', False))")
+
+if [ "${DTI_ENABLED}" = "True" ]; then
+    echo "--------------------------------------------------"
+    echo "       Running DTI Analysis"
+    echo "--------------------------------------------------"
+    
+    DTI_LOG_FILE="logs/dti_${SUBJECT}.out"
+    
+    python -u 05_fit_tensor.py \
+        "${SUBJECT}" \
+        "${OUTPUT_DIR}" \
+        --config_file "${CONFIG_FILE}" > "${DTI_LOG_FILE}" 2>&1
+    
+    if [ $? -eq 0 ]; then
+        echo "--- Successfully completed DTI analysis ---"
+    else
+        echo "!!! ERROR in DTI analysis - check ${DTI_LOG_FILE} !!!"
+    fi
+else
+    echo "--- DTI fitting disabled in configuration ---"
+fi
+
 echo "--- All b-value analyses complete. Job finished at $(date) ---"

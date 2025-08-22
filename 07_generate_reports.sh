@@ -79,9 +79,45 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Check if bi-exponential model is enabled
+BIEXP_ENABLED=$(python -c "import json; cfg=json.load(open('${CONFIG_FILE}')); print(cfg.get('processing',{}).get('temperature_model','monoexponential') == 'biexponential')")
+
+if [ "${BIEXP_ENABLED}" = "True" ]; then
+    echo "--- Generating bi-exponential analysis ---"
+    if [ -f "09_biexponential_analysis.py" ]; then
+        python 09_biexponential_analysis.py "${SUBJECT}" "${OUTPUT_DIR}"
+        
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Bi-exponential analysis failed!"
+        fi
+    else
+        echo "WARNING: 09_biexponential_analysis.py not found!"
+    fi
+    
+    echo "--- Generating model comparison ---"
+    if [ -f "10_model_comparison.py" ]; then
+        python 10_model_comparison.py "${SUBJECT}" "${OUTPUT_DIR}" \
+            "$(python -c "import json; print(json.load(open('${CONFIG_FILE}'))['paths']['bids_root'])")" \
+            --config_file "${CONFIG_FILE}" \
+            --skip_calculation
+        
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Model comparison failed!"
+        fi
+    else
+        echo "WARNING: 10_model_comparison.py not found!"
+    fi
+else
+    echo "--- Bi-exponential model disabled, skipping advanced analyses ---"
+fi
+
 echo "========================================"
 echo "All reports generated successfully!"
 echo "Results are in: ${OUTPUT_DIR}"
 echo "View report at: ${OUTPUT_DIR}/${SUBJECT}/comprehensive_report/report.html"
+if [ "${BIEXP_ENABLED}" = "True" ]; then
+    echo "Bi-exponential analysis: ${OUTPUT_DIR}/${SUBJECT}/biexponential_analysis/"
+    echo "Model comparison: ${OUTPUT_DIR}/${SUBJECT}/model_comparison/"
+fi
 echo "Finished at: $(date)"
 echo "========================================"

@@ -2,6 +2,7 @@
 import os, sys, subprocess, argparse, numpy as np, nibabel as nib, matplotlib.pyplot as plt
 import pandas as pd, json, logging, warnings
 from datetime import datetime
+from scipy.optimize import curve_fit
 
 warnings.filterwarnings('ignore')
 
@@ -311,9 +312,8 @@ def main():
     adc_map_masked_safe = os.path.join(sub_out_dir, f'adc_map_masked_safe_{args.output_suffix}.mif')
     temp_map_masked = os.path.join(sub_out_dir, f'temperature_map_{args.output_suffix}.mif')
 
-    logger.info("Step 1: Calculating ADC map")
+    logger.info("Step 1: Preparing data for diffusion analysis")
     dwi_reduced = os.path.join(tmp_dir, 'dwi_reduced.mif')
-    dwi_adc_raw = os.path.join(tmp_dir, 'dwi_adc_raw.mif')
     
     # Load b-values and select indices
     bvals = np.loadtxt(dwi_ap_bval)
@@ -328,10 +328,29 @@ def main():
     
     logger.info(f"Selected {len(indices_to_keep)} volumes with b-values: {[bvals[i] for i in indices_to_keep]}")
     indices_str = ",".join(map(str, indices_to_keep))
+    selected_bvals = np.array([bvals[i] for i in indices_to_keep])
     
+    # Extract selected volumes
     run_command(['mrconvert', dwi_upsampled, dwi_reduced, '-coord', '3', indices_str, '-force'], log_file, logger)
-    run_command(['dwi2adc', dwi_reduced, dwi_adc_raw, '-force'], log_file, logger)
-    run_command(['mrconvert', dwi_adc_raw, adc_map_full, '-coord', '3', '1', '-force'], log_file, logger)
+    
+    # Check if we should use bi-exponential model
+    use_biexponential = config['processing'].get('temperature_model', 'monoexponential') == 'biexponential'
+    
+    if use_biexponential:
+        logger.info("Using bi-exponential diffusion model")
+        # Check if FA is available
+        fa_file = os.path.join(sub_out_dir, 'dti', 'fa.mif')
+        if os.path.exists(fa_file):
+            logger.info("FA map found, will use for model validation")
+        else:
+            logger.warning("FA map not found, proceeding without FA information")
+            fa_file = None
+    else:
+        logger.info("Using standard monoexponential ADC model")
+        # Use standard ADC calculation
+        dwi_adc_raw = os.path.join(tmp_dir, 'dwi_adc_raw.mif')
+        run_command(['dwi2adc', dwi_reduced, dwi_adc_raw, '-force'], log_file, logger)
+        run_command(['mrconvert', dwi_adc_raw, adc_map_full, '-coord', '3', '1', '-force'], log_file, logger)
 
     logger.info("Step 2: Creating CSF mask")
     
@@ -346,20 +365,117 @@ def main():
         create_csf_mask_adc(adc_map_full, adc_min, adc_max, 
                            csf_mask_cleaned, log_file, logger)
 
-    logger.info("Step 3: Applying mask and filtering non-physical ADC values")
-    adc_map_masked = os.path.join(tmp_dir, 'adc_map_masked.mif')
-    run_command(['mrcalc', adc_map_full, csf_mask_cleaned, '-mult', adc_map_masked, '-force'], log_file, logger)
-    run_command(['mrcalc', adc_map_masked, '-finite', adc_map_masked, '0', '-if', adc_map_masked_safe, '-force'], 
-                log_file, logger)
-    
-    logger.info("Step 4: Calculating temperature map")
-    A = config['processing']['temperature_constants']['A']
-    B = config['processing']['temperature_constants']['B']
-    logger.info(f"Using temperature constants: A={A}, B={B}")
-    
-    temp_calc_cmd = (f"mrcalc {adc_map_masked_safe} 0 -gt {A} {B} {adc_map_masked_safe} -divide "
-                    f"-log -divide 273.15 -subtract 0 -if {temp_map_masked} -force")
-    run_command(temp_calc_cmd, log_file, logger)
+    if use_biexponential:
+        logger.info("Step 3: Performing voxel-wise bi-exponential fitting")
+        
+        # Convert data to NIfTI for processing
+        dwi_reduced_nii = os.path.join(tmp_dir, 'dwi_reduced.nii.gz')
+        csf_mask_nii_path = os.path.join(tmp_dir, 'csf_mask_cleaned.nii.gz')
+        run_command(['mrconvert', dwi_reduced, dwi_reduced_nii, '-force', '-quiet'], log_file, logger)
+        run_command(['mrconvert', csf_mask_cleaned, csf_mask_nii_path, '-force', '-quiet'], log_file, logger)
+        
+        # Load data
+        dwi_data = nib.load(dwi_reduced_nii).get_fdata()
+        csf_mask_data = nib.load(csf_mask_nii_path).get_fdata()
+        
+        # Load FA if available
+        fa_data = None
+        if fa_file:
+            fa_nii = os.path.join(tmp_dir, 'fa.nii.gz')
+            run_command(['mrconvert', fa_file, fa_nii, '-force', '-quiet'], log_file, logger)
+            fa_data = nib.load(fa_nii).get_fdata()
+        
+        # Initialize output arrays
+        d_free_map = np.zeros_like(csf_mask_data)
+        d_tissue_map = np.zeros_like(csf_mask_data)
+        f_free_map = np.zeros_like(csf_mask_data)
+        r_squared_map = np.zeros_like(csf_mask_data)
+        model_used_map = np.zeros_like(csf_mask_data)  # 0=none, 1=mono, 2=biexp
+        temp_map = np.zeros_like(csf_mask_data)
+        
+        # Process each voxel in CSF mask
+        valid_voxels = np.where(csf_mask_data > 0)
+        total_voxels = len(valid_voxels[0])
+        logger.info(f"Processing {total_voxels} CSF voxels with bi-exponential model...")
+        
+        A = config['processing']['temperature_constants']['A']
+        B = config['processing']['temperature_constants']['B']
+        
+        # Process in batches for progress reporting
+        batch_size = 1000
+        for batch_start in range(0, total_voxels, batch_size):
+            batch_end = min(batch_start + batch_size, total_voxels)
+            if batch_start % 10000 == 0:
+                logger.info(f"Processing voxels {batch_start}-{batch_end} of {total_voxels}...")
+            
+            for idx in range(batch_start, batch_end):
+                x, y, z = valid_voxels[0][idx], valid_voxels[1][idx], valid_voxels[2][idx]
+                signal = dwi_data[x, y, z, :]
+                fa_value = fa_data[x, y, z] if fa_data is not None else 0.0
+                
+                # Fit model
+                result = process_voxel_with_model_selection(signal, selected_bvals, fa_value, config, logger)
+                
+                if result['fitting_success'] and result['D_for_temperature'] > 0:
+                    # Calculate temperature
+                    D = result['D_for_temperature']
+                    temp_map[x, y, z] = (A / (B + np.log(D))) - 273.15
+                    
+                    # Store bi-exponential parameters if available
+                    if result['model_used'] == 'biexponential':
+                        d_free_map[x, y, z] = result['D_free']
+                        d_tissue_map[x, y, z] = result['D_tissue']
+                        f_free_map[x, y, z] = result['f_free']
+                        r_squared_map[x, y, z] = result['r_squared']
+                        model_used_map[x, y, z] = 2
+                    else:
+                        d_free_map[x, y, z] = result.get('ADC', 0)
+                        model_used_map[x, y, z] = 1
+        
+        logger.info("Saving bi-exponential parameter maps...")
+        
+        # Save parameter maps
+        affine = nib.load(csf_mask_nii_path).affine
+        nib.save(nib.Nifti1Image(d_free_map, affine), 
+                 os.path.join(sub_out_dir, f'd_free_map_{args.output_suffix}.nii.gz'))
+        nib.save(nib.Nifti1Image(d_tissue_map, affine), 
+                 os.path.join(sub_out_dir, f'd_tissue_map_{args.output_suffix}.nii.gz'))
+        nib.save(nib.Nifti1Image(f_free_map, affine), 
+                 os.path.join(sub_out_dir, f'f_free_map_{args.output_suffix}.nii.gz'))
+        nib.save(nib.Nifti1Image(r_squared_map, affine), 
+                 os.path.join(sub_out_dir, f'r_squared_map_{args.output_suffix}.nii.gz'))
+        nib.save(nib.Nifti1Image(model_used_map, affine), 
+                 os.path.join(sub_out_dir, f'model_used_map_{args.output_suffix}.nii.gz'))
+        nib.save(nib.Nifti1Image(temp_map, affine), 
+                 os.path.join(tmp_dir, 'temp_map_masked.nii.gz'))
+        
+        # Convert temperature map back to MIF
+        run_command(['mrconvert', os.path.join(tmp_dir, 'temp_map_masked.nii.gz'), 
+                     temp_map_masked, '-force', '-quiet'], log_file, logger)
+        
+        # Create ADC map for compatibility
+        adc_data = d_free_map  # Use D_free as "ADC" for downstream compatibility
+        nib.save(nib.Nifti1Image(adc_data, affine), 
+                 os.path.join(tmp_dir, 'adc_map_masked_safe.nii.gz'))
+        run_command(['mrconvert', os.path.join(tmp_dir, 'adc_map_masked_safe.nii.gz'), 
+                     adc_map_masked_safe, '-force', '-quiet'], log_file, logger)
+        
+    else:
+        # Standard monoexponential processing
+        logger.info("Step 3: Applying mask and filtering non-physical ADC values")
+        adc_map_masked = os.path.join(tmp_dir, 'adc_map_masked.mif')
+        run_command(['mrcalc', adc_map_full, csf_mask_cleaned, '-mult', adc_map_masked, '-force'], log_file, logger)
+        run_command(['mrcalc', adc_map_masked, '-finite', adc_map_masked, '0', '-if', adc_map_masked_safe, '-force'], 
+                    log_file, logger)
+        
+        logger.info("Step 4: Calculating temperature map")
+        A = config['processing']['temperature_constants']['A']
+        B = config['processing']['temperature_constants']['B']
+        logger.info(f"Using temperature constants: A={A}, B={B}")
+        
+        temp_calc_cmd = (f"mrcalc {adc_map_masked_safe} 0 -gt {A} {B} {adc_map_masked_safe} -divide "
+                        f"-log -divide 273.15 -subtract 0 -if {temp_map_masked} -force")
+        run_command(temp_calc_cmd, log_file, logger)
 
     logger.info("Step 5: Generating statistics and quality control metrics")
     
@@ -388,6 +504,7 @@ def main():
             'subject_id': args.subject_id,
             'analysis': args.output_suffix,
             'mask_method': mask_method,
+            'temperature_model': config['processing'].get('temperature_model', 'monoexponential'),
             'b_values': '_'.join(map(str, args.bvals_for_adc)),
             'num_b_values': len(args.bvals_for_adc),
             'num_csf_voxels': len(temp_values),
@@ -399,6 +516,28 @@ def main():
             'temp_q25_C': np.percentile(temp_values, 25),
             'temp_q75_C': np.percentile(temp_values, 75)
         }
+        
+        # Add bi-exponential statistics if available
+        if use_biexponential:
+            # Load parameter maps for statistics
+            d_free_data = nib.load(os.path.join(sub_out_dir, f'd_free_map_{args.output_suffix}.nii.gz')).get_fdata()
+            f_free_data = nib.load(os.path.join(sub_out_dir, f'f_free_map_{args.output_suffix}.nii.gz')).get_fdata()
+            r_squared_data = nib.load(os.path.join(sub_out_dir, f'r_squared_map_{args.output_suffix}.nii.gz')).get_fdata()
+            model_used_data = nib.load(os.path.join(sub_out_dir, f'model_used_map_{args.output_suffix}.nii.gz')).get_fdata()
+            
+            # Calculate statistics for bi-exponential parameters
+            valid_biexp = (model_used_data == 2) & (csf_mask_data > 0)
+            if np.any(valid_biexp):
+                stats['biexp_voxels'] = np.sum(valid_biexp)
+                stats['biexp_fraction'] = np.sum(valid_biexp) / len(temp_values) if len(temp_values) > 0 else 0
+                stats['d_free_mean'] = np.mean(d_free_data[valid_biexp]) if np.any(valid_biexp) else 0
+                stats['d_free_std'] = np.std(d_free_data[valid_biexp]) if np.any(valid_biexp) else 0
+                stats['f_free_mean'] = np.mean(f_free_data[valid_biexp]) if np.any(valid_biexp) else 0
+                stats['f_free_std'] = np.std(f_free_data[valid_biexp]) if np.any(valid_biexp) else 0
+                stats['r_squared_mean'] = np.mean(r_squared_data[valid_biexp]) if np.any(valid_biexp) else 0
+            else:
+                stats['biexp_voxels'] = 0
+                stats['biexp_fraction'] = 0
         # Add QC metrics to stats
         stats.update(qc_metrics)
         
