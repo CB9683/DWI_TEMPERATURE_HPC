@@ -137,10 +137,42 @@ git branch
 2. Let data determine optimal water fraction
 3. Use FA only for post-hoc validation
 
+## Analysis and Visualization Pipeline
+
+### New Analysis Scripts
+1. **09_biexponential_analysis.py**: Visualizes bi-exponential parameters
+   - D_free, D_tissue, and f_free parameter maps
+   - Model fitting quality (R²) maps
+   - FA correlation analysis
+   - Distribution statistics
+
+2. **10_model_comparison.py**: Compares mono vs bi-exponential models
+   - Side-by-side temperature maps
+   - Temperature difference visualization
+   - Statistical comparison (paired t-test)
+   - FA vs temperature improvement analysis
+
+### Pipeline Integration
+- DTI fitting automatically runs after b-value sweep (if enabled)
+- Report generation includes bi-exponential analyses when model is enabled
+- All parameter maps are saved for further analysis
+
+## Running the Complete Pipeline
+
+### For Bi-exponential Analysis:
+1. Set `"temperature_model": "biexponential"` in pipeline_config.json
+2. Ensure `"fit_dti": true` for FA calculation
+3. Run: `bash 00_pipeline_manager.sh`
+4. View results in:
+   - `derivatives/sub-*/biexponential_analysis/`
+   - `derivatives/sub-*/model_comparison/`
+
 ## Future Enhancements
-- [ ] Implement voxel-wise model selection based on AIC/BIC
+- [x] Implement voxel-wise bi-exponential fitting
+- [x] Create comparison plots between mono/bi-exponential results
+- [x] Integrate DTI/FA analysis
 - [ ] Add bootstrap confidence intervals for temperature
-- [ ] Create comparison plots between mono/bi-exponential results
+- [ ] Implement voxel-wise model selection based on AIC/BIC
 - [ ] Optimize fitting for speed (parallel processing)
 
 ## References
