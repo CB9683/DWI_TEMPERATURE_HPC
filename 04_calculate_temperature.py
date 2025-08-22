@@ -92,6 +92,168 @@ def calculate_quality_metrics(adc_data, csf_mask, temp_data, logger):
     logger.info(f"Quality metrics calculated: {len(temp_values)} valid voxels")
     return metrics
 
+def fit_biexponential_model(signal, b_values, fa_value, config, logger):
+    """
+    Fit bi-exponential diffusion model with physical constraints
+    
+    Model: S(b) = S0 * (f_free * exp(-b * D_free) + (1 - f_free) * exp(-b * D_tissue))
+    
+    Args:
+        signal: DWI signal values
+        b_values: b-values corresponding to signal
+        fa_value: FA value for this voxel (used for validation)
+        config: configuration dictionary
+        logger: logger instance
+    
+    Returns:
+        dict: Fitted parameters or None if fitting failed
+    """
+    from scipy.optimize import curve_fit, OptimizeWarning
+    import warnings
+    
+    # Suppress optimization warnings for cleaner logs
+    warnings.filterwarnings('ignore', category=OptimizeWarning)
+    
+    # Get configuration parameters
+    biexp_config = config['processing']['biexponential_model']
+    d_free_bounds = biexp_config['d_free_bounds']
+    d_tissue_bounds = biexp_config['d_tissue_bounds']
+    initial_guess = biexp_config['initial_guess']
+    
+    def biexponential_signal(b, S0, f_free, D_free, D_tissue):
+        """Bi-exponential signal model"""
+        return S0 * (f_free * np.exp(-b * D_free) + (1 - f_free) * np.exp(-b * D_tissue))
+    
+    try:
+        # Initial parameter guess
+        S0_init = signal[0] if signal[0] > 0 else np.max(signal)
+        p0 = [S0_init, initial_guess['f_free'], initial_guess['d_free'], initial_guess['d_tissue']]
+        
+        # Parameter bounds: [S0, f_free, D_free, D_tissue]
+        lower_bounds = [0, 0, d_free_bounds[0], d_tissue_bounds[0]]
+        upper_bounds = [np.inf, 1, d_free_bounds[1], d_tissue_bounds[1]]
+        bounds = (lower_bounds, upper_bounds)
+        
+        # Perform fitting
+        popt, pcov = curve_fit(biexponential_signal, b_values, signal, 
+                              p0=p0, bounds=bounds, maxfev=1000)
+        
+        S0_fit, f_free_fit, D_free_fit, D_tissue_fit = popt
+        
+        # Calculate R-squared for goodness of fit
+        y_pred = biexponential_signal(b_values, *popt)
+        ss_res = np.sum((signal - y_pred) ** 2)
+        ss_tot = np.sum((signal - np.mean(signal)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        
+        # Calculate parameter uncertainties
+        param_errors = np.sqrt(np.diag(pcov)) if pcov is not None else [0, 0, 0, 0]
+        
+        return {
+            'S0': S0_fit,
+            'f_free': f_free_fit,
+            'D_free': D_free_fit,
+            'D_tissue': D_tissue_fit,
+            'r_squared': r_squared,
+            'param_errors': param_errors,
+            'fa_value': fa_value,
+            'fitting_success': True
+        }
+        
+    except Exception as e:
+        logger.debug(f"Bi-exponential fitting failed: {str(e)}")
+        return {
+            'S0': 0,
+            'f_free': 0,
+            'D_free': 0,
+            'D_tissue': 0,
+            'r_squared': 0,
+            'param_errors': [0, 0, 0, 0],
+            'fa_value': fa_value,
+            'fitting_success': False
+        }
+
+def fit_monoexponential_model(signal, b_values):
+    """
+    Fit mono-exponential diffusion model (standard ADC)
+    
+    Model: S(b) = S0 * exp(-b * ADC)
+    """
+    from scipy.optimize import curve_fit
+    
+    def monoexponential_signal(b, S0, ADC):
+        """Mono-exponential signal model"""
+        return S0 * np.exp(-b * ADC)
+    
+    try:
+        # Initial parameter guess
+        S0_init = signal[0] if signal[0] > 0 else np.max(signal)
+        p0 = [S0_init, 2.5e-3]  # Initial ADC guess
+        
+        # Parameter bounds: [S0, ADC]
+        bounds = ([0, 0.5e-3], [np.inf, 5e-3])
+        
+        # Perform fitting
+        popt, pcov = curve_fit(monoexponential_signal, b_values, signal, 
+                              p0=p0, bounds=bounds, maxfev=1000)
+        
+        S0_fit, ADC_fit = popt
+        
+        # Calculate R-squared
+        y_pred = monoexponential_signal(b_values, *popt)
+        ss_res = np.sum((signal - y_pred) ** 2)
+        ss_tot = np.sum((signal - np.mean(signal)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+        
+        return {
+            'S0': S0_fit,
+            'ADC': ADC_fit,
+            'r_squared': r_squared,
+            'fitting_success': True
+        }
+        
+    except Exception as e:
+        return {
+            'S0': 0,
+            'ADC': 0,
+            'r_squared': 0,
+            'fitting_success': False
+        }
+
+def process_voxel_with_model_selection(signal, b_values, fa_value, config, logger):
+    """
+    Process a single voxel with model selection between mono- and bi-exponential
+    
+    Returns:
+        dict: Results from the selected model
+    """
+    temperature_model = config['processing']['temperature_model']
+    
+    if temperature_model == 'biexponential':
+        # Try bi-exponential first
+        biexp_result = fit_biexponential_model(signal, b_values, fa_value, config, logger)
+        
+        if biexp_result['fitting_success'] and biexp_result['r_squared'] > 0.7:
+            # Use D_free for temperature calculation
+            biexp_result['model_used'] = 'biexponential'
+            biexp_result['D_for_temperature'] = biexp_result['D_free']
+            return biexp_result
+        else:
+            # Fall back to mono-exponential
+            logger.debug("Bi-exponential fitting failed, falling back to mono-exponential")
+            mono_result = fit_monoexponential_model(signal, b_values)
+            mono_result['model_used'] = 'monoexponential_fallback'
+            mono_result['D_for_temperature'] = mono_result.get('ADC', 0)
+            mono_result['fa_value'] = fa_value
+            return mono_result
+    
+    else:  # temperature_model == 'monoexponential'
+        mono_result = fit_monoexponential_model(signal, b_values)
+        mono_result['model_used'] = 'monoexponential'
+        mono_result['D_for_temperature'] = mono_result.get('ADC', 0)
+        mono_result['fa_value'] = fa_value
+        return mono_result
+
 def main():
     parser = argparse.ArgumentParser(description="Enhanced temperature calculation with flexible CSF masking.")
     parser.add_argument("subject_id")

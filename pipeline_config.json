@@ -5,24 +5,34 @@
         "fsl_dir": "/g/data/vp06/Christian/software/fsl",
         "mrtrix3_bin": "/g/data/vp06/Christian/software/mrtrix3/bin",
         "mrtrix3tissue_bin": "/g/data/vp06/Christian/software/MRtrix3Tissue/bin",
-        "conda_env": "/g/data/vp06/Christian/software/Envs/miniconda3/envs/mrtrix_env"
+        "conda_env": "/g/data/vp06/Christian/software/Envs/miniconda3/envs/mrtrix_full"
     },
     "processing": {
         "csf_threshold": 0.07,
         "bvalue_tolerance": 20,
+        "temperature_model": "monoexponential",
         "temperature_constants": {
             "A": 2256.74,
             "B": 4.39221
+        },
+        "biexponential_model": {
+            "fit_dti": true,
+            "fa_range_for_fitting": [0.0, 0.4],
+            "fa_tissue_threshold": 0.5,
+            "d_free_bounds": [2.0e-3, 4.0e-3],
+            "d_tissue_bounds": [0.1e-3, 1.5e-3],
+            "initial_guess": {
+                "d_free": 3.0e-3,
+                "d_tissue": 0.7e-3,
+                "f_free": 0.7
+            }
         }
     },
     "subjects": ["sub-01187"],
     "bvalue_sets": [
         [0, 200],
         [0, 1200]
-        ]
-}
-
-{
+    ],
     "stability_analysis": {
         "min_analyses": 5,
         "stability_threshold": 2.0,
