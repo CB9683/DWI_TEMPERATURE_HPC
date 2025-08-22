@@ -1,0 +1,8 @@
+./01_run_preprocessing.sh
+./07_generate_reports.sh
+./03_run_bvalue_sweep.sh
+./05_create_histograms.py
+./02_preprocess_subject.py
+./04_calculate_temperature.py
+./06_comprehensive_analysis.py
+./00_pipeline_manager.sh

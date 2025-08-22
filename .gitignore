@@ -1,0 +1,52 @@
+# Outputs and logs
+logs/
+*.out
+*.err
+*.o*
+*.e*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+*.pyc
+
+# Data files (MRtrix and NIfTI)
+*.mif
+*.nii
+*.nii.gz
+
+# Analysis outputs
+*.csv
+*.png
+*.html
+temperature_*.txt
+adc_map_*.mif
+temperature_map_*.mif
+csf_mask_*.mif
+
+# Keep template/example configs
+!*template*.json
+!*example*.json
+
+# Job submission records
+pipeline_jobs_*.txt
+
+# Temporary directories
+tmp_*/
+temp/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*~
+*.bak

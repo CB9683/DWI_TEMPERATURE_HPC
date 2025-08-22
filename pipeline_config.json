@@ -1,0 +1,34 @@
+{
+    "paths": {
+        "bids_root": "/g/data/hl36/cb4095/WAND/WAND",
+        "base_output": "/g/data/hl36/cb4095/WAND/derivatives",
+        "fsl_dir": "/g/data/vp06/Christian/software/fsl",
+        "mrtrix3_bin": "/g/data/vp06/Christian/software/mrtrix3/bin",
+        "mrtrix3tissue_bin": "/g/data/vp06/Christian/software/MRtrix3Tissue/bin",
+        "conda_env": "/g/data/vp06/Christian/software/Envs/miniconda3/envs/mrtrix_env"
+    },
+    "processing": {
+        "csf_threshold": 0.07,
+        "bvalue_tolerance": 20,
+        "temperature_constants": {
+            "A": 2256.74,
+            "B": 4.39221
+        }
+    },
+    "subjects": ["sub-01187"],
+    "bvalue_sets": [
+        [0, 200],
+        [0, 1200]
+        ]
+}
+
+{
+    "stability_analysis": {
+        "min_analyses": 5,
+        "stability_threshold": 2.0,
+        "output_dir": "/g/data/vp06/Christian/dwi-temperature_updated/stability_results"
+    },
+    "visualization": {
+        "output_dir": "/g/data/vp06/Christian/dwi-temperature_updated/visualizations"
+    }
+}
