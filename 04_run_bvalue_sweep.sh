@@ -5,8 +5,8 @@
 #PBS -l storage=gdata/vp06+scratch/vp06+gdata/hl36
 #PBS -l wd
 #PBS -N TempBvalSweep
-#PBS -o logs/03_bvalue_sweep.out
-#PBS -e logs/03_bvalue_sweep.err
+#PBS -o logs/04_bvalue_sweep.out
+#PBS -e logs/04_bvalue_sweep.err
 
 # --- 1. CHECK PASSED VARIABLES ---
 if [ -z "${OUTPUT_DIR}" ]; then
@@ -92,7 +92,7 @@ for i in $(seq 0 $((TOTAL_BVAL_SETS - 1))); do
     echo "       Detailed log: ${RUN_LOG_FILE}"
     echo "--------------------------------------------------"
 
-    python -u 04_calculate_temperature.py \
+    python -u 05_calculate_temperature.py \
         "${SUBJECT}" \
         "${OUTPUT_DIR}" \
         "${BIDS_ROOT}" \
@@ -117,7 +117,7 @@ if [ "${DTI_ENABLED}" = "True" ]; then
     
     DTI_LOG_FILE="logs/dti_${SUBJECT}.out"
     
-    python -u 05_fit_tensor.py \
+    python -u 03_fit_tensor.py \
         "${SUBJECT}" \
         "${OUTPUT_DIR}" \
         --config_file "${CONFIG_FILE}" > "${DTI_LOG_FILE}" 2>&1

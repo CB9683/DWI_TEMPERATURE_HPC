@@ -1,0 +1,3 @@
+DTI analysis submitted at: Wed Aug 27 15:21:12 AEST 2025
+Output directory: /g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-08-27_11-27-08
+DTI job: 148030243.gadi-pbs

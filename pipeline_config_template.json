@@ -1,4 +1,5 @@
 {
+    "_comment": "Template configuration file - copy to pipeline_config.json and edit paths/subjects",
     "paths": {
         "bids_root": "/g/data/hl36/cb4095/WAND/WAND",
         "base_output": "/g/data/hl36/cb4095/WAND/derivatives",
@@ -12,13 +13,8 @@
         "bvalue_tolerance": 20,
         "temperature_model": "biexponential",
         "temperature_constants": {
-            "A": 2047.49,
-            "B": -13.02
-        },
-        "smoothing": {
-            "enabled": false,
-            "fwhm_mm": 3.0,
-            "apply_to": "dwi"
+            "A": 2256.74,
+            "B": 4.39221
         },
         "biexponential_model": {
             "fit_dti": true,
@@ -33,13 +29,14 @@
             }
         }
     },
-    "subjects": ["sub-01945"],
+    "subjects": ["REPLACE_WITH_YOUR_SUBJECT_IDS"],
     "bvalue_sets": [
-        [0, 500],
-        [0, 200,500]
+        [0, 200],
+        [0, 1200]
     ],
+    "_comment_bvalue_sets": "Add more b-value combinations for comprehensive analysis",
     "stability_analysis": {
-        "min_analyses": 2,
+        "min_analyses": 5,
         "stability_threshold": 2.0,
         "output_dir": "/g/data/vp06/Christian/dwi-temperature_updated/stability_results"
     },

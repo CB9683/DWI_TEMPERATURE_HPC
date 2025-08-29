@@ -333,6 +333,21 @@ def main():
     # Extract selected volumes
     run_command(['mrconvert', dwi_upsampled, dwi_reduced, '-coord', '3', indices_str, '-force'], log_file, logger)
     
+    # Apply smoothing if enabled
+    smoothing_config = config['processing'].get('smoothing', {})
+    if smoothing_config.get('enabled', False):
+        fwhm_mm = smoothing_config.get('fwhm_mm', 3.0)
+        apply_to = smoothing_config.get('apply_to', 'dwi')
+        
+        if apply_to == 'dwi':
+            logger.info(f"Applying Gaussian smoothing to DWI data (FWHM: {fwhm_mm}mm)")
+            dwi_smoothed = os.path.join(tmp_dir, 'dwi_reduced_smoothed.mif')
+            run_command(['mrfilter', dwi_reduced, 'smooth', dwi_smoothed, '-fwhm', str(fwhm_mm), '-force'], 
+                       log_file, logger)
+            # Replace the reduced DWI with smoothed version
+            run_command(['mrconvert', dwi_smoothed, dwi_reduced, '-force'], log_file, logger)
+            logger.info("Smoothing applied to DWI data")
+    
     # Check if we should use bi-exponential model
     use_biexponential = config['processing'].get('temperature_model', 'monoexponential') == 'biexponential'
     
@@ -418,8 +433,11 @@ def main():
                 
                 if result['fitting_success'] and result['D_for_temperature'] > 0:
                     # Calculate temperature
-                    D = result['D_for_temperature']
-                    temp_map[x, y, z] = (A / (B + np.log(D))) - 273.15
+                    # Use D directly in mm²/s (no conversion needed)
+                    D = result['D_for_temperature']  # Already in mm²/s
+                    # Correct formula: T = A / (B - ln(D)) - 273.15 with D in m²/s
+                    D_m2s = D * 1e-6  # Convert to m²/s for the formula
+                    temp_map[x, y, z] = (A / (B - np.log(D_m2s))) - 273.15
                     
                     # Store bi-exponential parameters if available
                     if result['model_used'] == 'biexponential':
@@ -473,8 +491,11 @@ def main():
         B = config['processing']['temperature_constants']['B']
         logger.info(f"Using temperature constants: A={A}, B={B}")
         
-        temp_calc_cmd = (f"mrcalc {adc_map_masked_safe} 0 -gt {A} {B} {adc_map_masked_safe} -divide "
-                        f"-log -divide 273.15 -subtract 0 -if {temp_map_masked} -force")
+        # Correct formula: T = A / (B - ln(D)) - 273.15 where D is in m²/s
+        # ADC is in mm²/s, need to convert to m²/s by multiplying by 1e-6
+        # With corrected constants: A = 2047.49, B = -13.02
+        temp_calc_cmd = (f"mrcalc {adc_map_masked_safe} 0 -gt {A} {B} {adc_map_masked_safe} 1e-6 -mult "
+                        f"-log -subtract -divide 273.15 -subtract 0 -if {temp_map_masked} -force")
         run_command(temp_calc_cmd, log_file, logger)
 
     logger.info("Step 5: Generating statistics and quality control metrics")

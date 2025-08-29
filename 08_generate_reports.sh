@@ -5,8 +5,8 @@
 #PBS -l storage=gdata/vp06+scratch/vp06+gdata/hl36
 #PBS -l wd
 #PBS -N Generate_Reports
-#PBS -o logs/07_reports.out
-#PBS -e logs/07_reports.err
+#PBS -o logs/08_reports.out
+#PBS -e logs/08_reports.err
 
 # This job runs the visualization and report generation scripts
 
@@ -51,19 +51,19 @@ echo "Python version in conda env: $(python --version)"
 export PATH=${MRTRIX3_BIN}:${PATH}
 
 # Check that required Python scripts exist
-if [ ! -f "05_create_histograms.py" ]; then
-    echo "ERROR: 05_create_histograms.py not found!"
+if [ ! -f "06_create_histograms.py" ]; then
+    echo "ERROR: 06_create_histograms.py not found!"
     exit 1
 fi
 
-if [ ! -f "06_comprehensive_analysis.py" ]; then
-    echo "ERROR: 06_comprehensive_analysis.py not found!"
+if [ ! -f "07_comprehensive_analysis.py" ]; then
+    echo "ERROR: 07_comprehensive_analysis.py not found!"
     exit 1
 fi
 
 # Generate histograms
 echo "--- Generating histograms ---"
-python 05_create_histograms.py "${SUBJECT}" "${OUTPUT_DIR}"
+python 06_create_histograms.py "${SUBJECT}" "${OUTPUT_DIR}"
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Histogram generation failed!"
@@ -72,7 +72,7 @@ fi
 
 # Generate comprehensive analysis
 echo "--- Generating comprehensive analysis ---"
-python 06_comprehensive_analysis.py "${SUBJECT}" "${OUTPUT_DIR}"
+python 07_comprehensive_analysis.py "${SUBJECT}" "${OUTPUT_DIR}"
 
 if [ $? -ne 0 ]; then
     echo "ERROR: Comprehensive analysis failed!"
@@ -84,19 +84,19 @@ BIEXP_ENABLED=$(python -c "import json; cfg=json.load(open('${CONFIG_FILE}')); p
 
 if [ "${BIEXP_ENABLED}" = "True" ]; then
     echo "--- Generating bi-exponential analysis ---"
-    if [ -f "09_biexponential_analysis.py" ]; then
-        python 09_biexponential_analysis.py "${SUBJECT}" "${OUTPUT_DIR}"
+    if [ -f "13_biexponential_analysis.py" ]; then
+        python 13_biexponential_analysis.py "${SUBJECT}" "${OUTPUT_DIR}"
         
         if [ $? -ne 0 ]; then
             echo "WARNING: Bi-exponential analysis failed!"
         fi
     else
-        echo "WARNING: 09_biexponential_analysis.py not found!"
+        echo "WARNING: 13_biexponential_analysis.py not found!"
     fi
     
     echo "--- Generating model comparison ---"
-    if [ -f "10_model_comparison.py" ]; then
-        python 10_model_comparison.py "${SUBJECT}" "${OUTPUT_DIR}" \
+    if [ -f "14_model_comparison.py" ]; then
+        python 14_model_comparison.py "${SUBJECT}" "${OUTPUT_DIR}" \
             "$(python -c "import json; print(json.load(open('${CONFIG_FILE}'))['paths']['bids_root'])")" \
             --config_file "${CONFIG_FILE}" \
             --skip_calculation
@@ -105,7 +105,7 @@ if [ "${BIEXP_ENABLED}" = "True" ]; then
             echo "WARNING: Model comparison failed!"
         fi
     else
-        echo "WARNING: 10_model_comparison.py not found!"
+        echo "WARNING: 14_model_comparison.py not found!"
     fi
 else
     echo "--- Bi-exponential model disabled, skipping advanced analyses ---"

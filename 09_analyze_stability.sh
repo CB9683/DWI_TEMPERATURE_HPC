@@ -5,8 +5,8 @@
 #PBS -l storage=gdata/vp06+scratch/vp06+gdata/hl36
 #PBS -l wd
 #PBS -N TempStability
-#PBS -o logs/08_stability_analysis.out
-#PBS -e logs/08_stability_analysis.err
+#PBS -o logs/09_stability_analysis.out
+#PBS -e logs/09_stability_analysis.err
 
 # This job runs the temperature stability analysis
 
@@ -55,7 +55,7 @@ echo "Subject: ${SUBJECT}"
 echo "Python version: $(python --version)"
 
 # Check that the analysis script exists
-if [ ! -f "08_analyze_stability.py" ]; then
+if [ ! -f "10_analyze_stability.py" ]; then
     echo "ERROR: analyze_temperature_stability.py not found!"
     exit 1
 fi
@@ -69,7 +69,7 @@ echo "--- Running stability analysis ---"
 echo "Stability threshold: ${STABILITY_THRESHOLD}°C"
 echo "Minimum analyses required: ${MIN_ANALYSES}"
 
-python 08_analyze_stability.py \
+python 10_analyze_stability.py \
     "${SUBJECT}" \
     "${OUTPUT_DIR}" \
     --stability_threshold ${STABILITY_THRESHOLD} \

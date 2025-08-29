@@ -24,7 +24,7 @@ def run_temperature_calculation(subject_id, output_dir, bids_root, bvals, suffix
     
     # Prepare command
     cmd = [
-        'python', '04_calculate_temperature.py',
+        'python', '05_calculate_temperature.py',
         subject_id, output_dir, bids_root,
         '--bvals_for_adc'] + [str(b) for b in bvals] + [
         '--output_suffix', f'{suffix}_{model}',

@@ -49,14 +49,14 @@ def calculate_tensor_metrics(dt_file, output_dir, logger):
     eval_file = os.path.join(output_dir, 'eval.mif')
     evec_file = os.path.join(output_dir, 'evec.mif')
     
-    # Calculate DTI metrics
+    # Calculate DTI metrics with correct MRtrix3 syntax
     metrics = {
         'fa': fa_file,
-        'md': md_file,
+        'adc': md_file,  # MRtrix3 uses 'adc' instead of 'md' for mean diffusivity
         'ad': ad_file,
         'rd': rd_file,
-        'eval': eval_file,
-        'evec': evec_file
+        'value': eval_file,  # MRtrix3 uses 'value' instead of 'eval' for eigenvalues
+        'vector': evec_file  # MRtrix3 uses 'vector' instead of 'evec' for eigenvectors
     }
     
     # Generate all metrics at once
@@ -140,17 +140,17 @@ def calculate_quality_metrics(fa_data, md_data, mask_data, logger):
     md_values = md_data[valid_mask]
     
     metrics = {
-        'fa_mean': np.mean(fa_values) if len(fa_values) > 0 else 0,
-        'fa_median': np.median(fa_values) if len(fa_values) > 0 else 0,
-        'fa_std': np.std(fa_values) if len(fa_values) > 0 else 0,
-        'fa_min': np.min(fa_values) if len(fa_values) > 0 else 0,
-        'fa_max': np.max(fa_values) if len(fa_values) > 0 else 0,
-        'md_mean': np.mean(md_values) if len(md_values) > 0 else 0,
-        'md_median': np.median(md_values) if len(md_values) > 0 else 0,
-        'md_std': np.std(md_values) if len(md_values) > 0 else 0,
-        'low_fa_fraction': np.sum(fa_values < 0.2) / len(fa_values) if len(fa_values) > 0 else 0,
-        'high_fa_fraction': np.sum(fa_values > 0.7) / len(fa_values) if len(fa_values) > 0 else 0,
-        'csf_like_voxels': np.sum((fa_values < 0.15) & (md_values > 2.5e-3)) if len(fa_values) > 0 else 0
+        'fa_mean': float(np.mean(fa_values)) if len(fa_values) > 0 else 0,
+        'fa_median': float(np.median(fa_values)) if len(fa_values) > 0 else 0,
+        'fa_std': float(np.std(fa_values)) if len(fa_values) > 0 else 0,
+        'fa_min': float(np.min(fa_values)) if len(fa_values) > 0 else 0,
+        'fa_max': float(np.max(fa_values)) if len(fa_values) > 0 else 0,
+        'md_mean': float(np.mean(md_values)) if len(md_values) > 0 else 0,
+        'md_median': float(np.median(md_values)) if len(md_values) > 0 else 0,
+        'md_std': float(np.std(md_values)) if len(md_values) > 0 else 0,
+        'low_fa_fraction': float(np.sum(fa_values < 0.2) / len(fa_values)) if len(fa_values) > 0 else 0,
+        'high_fa_fraction': float(np.sum(fa_values > 0.7) / len(fa_values)) if len(fa_values) > 0 else 0,
+        'csf_like_voxels': int(np.sum((fa_values < 0.15) & (md_values > 2.5e-3))) if len(fa_values) > 0 else 0
     }
     
     logger.info(f"Tensor quality metrics calculated: {len(fa_values)} valid voxels")
@@ -213,7 +213,7 @@ def main():
     
     run_command(['mrconvert', metric_files['fa'], fa_nii, '-force', '-quiet'], 
                 log_file, logger)
-    run_command(['mrconvert', metric_files['md'], md_nii, '-force', '-quiet'], 
+    run_command(['mrconvert', metric_files['adc'], md_nii, '-force', '-quiet'], 
                 log_file, logger)
     run_command(['mrconvert', dwi_mask, mask_nii, '-force', '-quiet'], 
                 log_file, logger)

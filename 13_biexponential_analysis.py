@@ -210,8 +210,12 @@ def create_parameter_visualization(maps, output_file, subject_id, suffix):
             stats_text += f"Mean R²: {np.mean(maps['r_squared'][valid]):.3f}\n"
             
             if maps['fa'] is not None:
-                fa_vals = maps['fa'][valid]
-                stats_text += f"FA in bi-exp voxels: {np.mean(fa_vals):.3f} ± {np.std(fa_vals):.3f}\n"
+                # Ensure FA has same shape as other maps
+                if maps['fa'].shape == valid.shape:
+                    fa_vals = maps['fa'][valid]
+                    stats_text += f"FA in bi-exp voxels: {np.mean(fa_vals):.3f} ± {np.std(fa_vals):.3f}\n"
+                else:
+                    stats_text += f"FA shape mismatch: {maps['fa'].shape} vs {valid.shape}\n"
     
     ax11.text(0.05, 0.95, stats_text, transform=ax11.transAxes, 
              fontsize=11, verticalalignment='top', fontfamily='monospace',
@@ -288,8 +292,12 @@ def main():
                 }
                 
                 if maps['fa'] is not None:
-                    stats['fa_mean'] = np.mean(maps['fa'][valid])
-                    stats['fa_std'] = np.std(maps['fa'][valid])
+                    # Ensure FA has same shape as other maps
+                    if maps['fa'].shape == valid.shape:
+                        stats['fa_mean'] = np.mean(maps['fa'][valid])
+                        stats['fa_std'] = np.std(maps['fa'][valid])
+                    else:
+                        print(f"Warning: FA shape mismatch for {suffix}: {maps['fa'].shape} vs {valid.shape}")
                 
                 all_stats.append(stats)
     

@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l ncpus=12,mem=32GB,jobfs=80GB,walltime=04:00:00
+#PBS -l ncpus=12,mem=32GB,jobfs=80GB,walltime=12:00:00
 #PBS -q gpuvolta
 #PBS -l ngpus=1
 #PBS -P vp06

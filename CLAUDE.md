@@ -26,8 +26,8 @@ Where:
 - `D_tissue`: Restricted diffusion in tissue
 
 ## Environment Configuration
-- **Conda Environment**: `mrtrix_full`
-- **Path**: `/g/data/vp06/Christian/software/Envs/miniconda3/envs/mrtrix_full`
+- **Conda Environment**: `dwi_temperature`
+- **Path**: `/g/data/vp06/Christian/software/Envs/miniconda3/envs/dwi_temperature`
 - **Key Dependencies**: MRtrix3, FSL, Python with scipy/numpy/nibabel
 
 ## Pipeline Architecture
@@ -36,10 +36,11 @@ Where:
 1. **00_pipeline_manager.sh**: Orchestrates the entire pipeline
 2. **01_run_preprocessing.sh**: Launches preprocessing
 3. **02_preprocess_subject.py**: DWI preprocessing (denoising, distortion correction, etc.)
-4. **03_run_bvalue_sweep.sh**: Runs temperature calculation for different b-value sets
-5. **04_calculate_temperature.py**: Temperature estimation (now with bi-exponential support)
-6. **05_fit_tensor.py**: NEW - DTI analysis for FA calculation
-7. **06_comprehensive_analysis.py**: Aggregates results and creates reports
+4. **03_run_dti.sh**: PBS job submission for DTI analysis (for stepwise execution)
+5. **03_fit_tensor.py**: DTI analysis for FA calculation (runs before temperature analysis in bi-exponential mode)
+6. **04_run_bvalue_sweep.sh**: Runs temperature calculation for different b-value sets
+7. **05_calculate_temperature.py**: Temperature estimation (now with bi-exponential support)
+8. **07_comprehensive_analysis.py**: Aggregates results and creates reports
 
 ### Key Enhancements in v2.0 (Bi-exponential)
 
@@ -48,6 +49,11 @@ Where:
 {
     "processing": {
         "temperature_model": "biexponential",  // or "monoexponential"
+        "smoothing": {
+            "enabled": false,  // Set to true to enable smoothing
+            "fwhm_mm": 3.0,    // Full width at half maximum in mm
+            "apply_to": "dwi"  // Apply smoothing to DWI data before temperature calculation
+        },
         "biexponential_model": {
             "fit_dti": true,
             "fa_range_for_fitting": [0.0, 0.4],
@@ -100,6 +106,13 @@ git branch
 2. Set `"temperature_model": "biexponential"`
 3. Run pipeline as normal
 
+## Testing Smoothing Effect
+1. Edit `pipeline_config.json`
+2. Set `"smoothing": {"enabled": true, "fwhm_mm": 3.0, "apply_to": "dwi"}`
+3. Run pipeline to compare smoothed vs unsmoothed results
+   - Small kernels (2-3mm FWHM) may reduce noise without excessive partial volume effects
+   - Larger kernels will worsen partial volume contamination
+
 ## Quality Control Checks
 
 ### For Bi-exponential Fitting
@@ -140,13 +153,13 @@ git branch
 ## Analysis and Visualization Pipeline
 
 ### New Analysis Scripts
-1. **09_biexponential_analysis.py**: Visualizes bi-exponential parameters
+1. **13_biexponential_analysis.py**: Visualizes bi-exponential parameters
    - D_free, D_tissue, and f_free parameter maps
    - Model fitting quality (R²) maps
    - FA correlation analysis
    - Distribution statistics
 
-2. **10_model_comparison.py**: Compares mono vs bi-exponential models
+2. **14_model_comparison.py**: Compares mono vs bi-exponential models
    - Side-by-side temperature maps
    - Temperature difference visualization
    - Statistical comparison (paired t-test)

@@ -14,7 +14,7 @@ echo "========================================"
 
 # Parse command line arguments
 SKIP_PREPROC=false
-EXISTING_OUTPUT_DIR="/g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-07-21_20-28-51/sub-00395"
+EXISTING_OUTPUT_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -70,18 +70,22 @@ if [ "$SKIP_PREPROC" = true ]; then
     done
     echo "All required preprocessing outputs found."
     
-    # Submit only the analysis and report jobs
+    # Submit only the analysis, stability and report jobs
     echo "Step 1: Submitting b-value sweep analysis job..."
-    JOB2=$(qsub -v OUTPUT_DIR=${OUTPUT_DIR} 03_run_bvalue_sweep.sh)
+    JOB2=$(qsub -v OUTPUT_DIR=${OUTPUT_DIR} 04_run_bvalue_sweep.sh)
     echo "Submitted analysis job: ${JOB2}"
     
-    echo "Step 2: Submitting report generation job..."
-    JOB3=$(qsub -W depend=afterok:${JOB2} -v OUTPUT_DIR=${OUTPUT_DIR} 07_generate_reports.sh)
-    echo "Submitted report generation job: ${JOB3}"
+    echo "Step 2: Submitting stability analysis job..."
+    JOB3=$(qsub -W depend=afterok:${JOB2} -v OUTPUT_DIR=${OUTPUT_DIR} 09_analyze_stability.sh)
+    echo "Submitted stability analysis job: ${JOB3}"
+    
+    echo "Step 3: Submitting report generation job..."
+    JOB4=$(qsub -W depend=afterok:${JOB2}:${JOB3} -v OUTPUT_DIR=${OUTPUT_DIR} 08_generate_reports.sh)
+    echo "Submitted report generation job: ${JOB4}"
     
     echo "========================================"
     echo "Jobs submitted successfully (preprocessing skipped)!"
-    echo "Job chain: ${JOB2} -> ${JOB3}"
+    echo "Job chain: ${JOB2} -> (${JOB3}, ${JOB4})"
     
 else
     # Normal pipeline execution with preprocessing
@@ -98,24 +102,21 @@ else
     
     # Step 2: Submit b-value sweep analysis (depends on preprocessing)
     echo "Step 2: Submitting b-value sweep analysis job..."
-    JOB2=$(qsub -W depend=afterok:${JOB1} -v OUTPUT_DIR=${OUTPUT_DIR} 03_run_bvalue_sweep.sh)
+    JOB2=$(qsub -W depend=afterok:${JOB1} -v OUTPUT_DIR=${OUTPUT_DIR} 04_run_bvalue_sweep.sh)
  S   echo "Submitted analysis job: ${JOB2}"
     
-    # Step 3: Submit visualization and report generation (depends on analysis)
-    echo "Step 3: Submitting report generation job..."
-    JOB3=$(qsub -W depend=afterok:${JOB2} -v OUTPUT_DIR=${OUTPUT_DIR} 07_generate_reports.sh)
-    echo "Submitted report generation job: ${JOB3}"
-    # Step 4: Submit stability analysis (depends on b-value sweep)
-    echo "Step 4: Submitting temperature stability analysis..."
-    JOB4=$(qsub -W depend=afterok:${JOB2} -v OUTPUT_DIR=${OUTPUT_DIR} 08_analyze_stability.sh)
-    echo "Submitted stability analysis job: ${JOB4}"
+    # Step 3: Submit stability analysis (depends on b-value sweep)
+    echo "Step 3: Submitting temperature stability analysis..."
+    JOB3=$(qsub -W depend=afterok:${JOB2} -v OUTPUT_DIR=${OUTPUT_DIR} 09_analyze_stability.sh)
+    echo "Submitted stability analysis job: ${JOB3}"
 
-    # Update report generation to depend on both analyses
-    echo "Step 5: Submitting final report generation job..."
-    JOB5=$(qsub -W depend=afterok:${JOB3}:${JOB4} -v OUTPUT_DIR=${OUTPUT_DIR} 07_generate_reports.sh)
+    # Step 4: Submit final report generation (depends on both analysis and stability)
+    echo "Step 4: Submitting report generation job..."
+    JOB4=$(qsub -W depend=afterok:${JOB2}:${JOB3} -v OUTPUT_DIR=${OUTPUT_DIR} 08_generate_reports.sh)
+    echo "Submitted report generation job: ${JOB4}"
     echo "========================================"
     echo "All jobs submitted successfully!"
-    echo "Job chain: ${JOB1} -> ${JOB2} -> ${JOB3}"
+    echo "Job chain: ${JOB1} -> ${JOB2} -> (${JOB3}, ${JOB4})"
 fi
 
 echo "Use 'qstat -u \$USER' to monitor job progress"
@@ -134,6 +135,7 @@ if [ "$SKIP_PREPROC" = false ]; then
     echo "Preprocessing job: ${JOB1}" >> ${SUMMARY_FILE}
 fi
 echo "Analysis job: ${JOB2}" >> ${SUMMARY_FILE}
-echo "Report job: ${JOB3}" >> ${SUMMARY_FILE}
+echo "Stability job: ${JOB3}" >> ${SUMMARY_FILE}
+echo "Report job: ${JOB4}" >> ${SUMMARY_FILE}
 
 echo "Job information saved to ${SUMMARY_FILE}"

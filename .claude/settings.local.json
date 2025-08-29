@@ -4,8 +4,14 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(git remote add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(chmod:*)",
+      "Read(/g/data/hl36/cb4095/WAND/derivatives/**)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "/g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-08-27_11-27-08/sub-01945"
+    ]
   }
 }

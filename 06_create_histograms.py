@@ -42,6 +42,9 @@ def main():
         df = pd.read_csv(stats_file)
         all_stats.append(df.iloc[0].to_dict())
     
+    # Dictionary to store temperature values for comparison
+    all_temps = {}
+    
     # Create individual histograms
     for temp_map_path in temp_map_files:
         try:
@@ -67,6 +70,9 @@ def main():
             if plausible_temps.size == 0:
                 print("!!! WARNING: No plausible temperature values found. Skipping plot.")
                 continue
+            
+            # Store temperatures for comparison plot
+            all_temps[suffix] = plausible_temps
 
             # Create enhanced histogram
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), gridspec_kw={'height_ratios': [3, 1]})

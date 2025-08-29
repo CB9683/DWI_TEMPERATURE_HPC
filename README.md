@@ -1,201 +1,283 @@
-# CSF Temperature Estimation Pipeline
+# DWI Temperature Estimation Pipeline
 
-This repository contains a comprehensive, automated pipeline for estimating brain temperature from diffusion-weighted imaging (DWI) data, with a focus on the cerebrospinal fluid (CSF). The pipeline leverages tools from MRtrix3, FSL, and custom Python scripts to perform preprocessing, analysis, and quality control reporting.
+This repository contains a comprehensive, automated pipeline for estimating brain temperature from diffusion-weighted imaging (DWI) data, with a focus on cerebrospinal fluid (CSF). The pipeline leverages MRtrix3, FSL, and custom Python scripts for preprocessing, analysis, and quality control reporting.
 
 ## 🆕 Version 2.0: Bi-exponential Diffusion Model
-The pipeline now includes an advanced bi-exponential diffusion model to address partial volume effects in CSF regions. This enhancement separates free water diffusion from tissue-contaminated signals, providing more accurate temperature estimates. See [CLAUDE.md](CLAUDE.md) for detailed documentation.
+The pipeline now includes an advanced **bi-exponential diffusion model** to address partial volume effects in CSF regions. This enhancement separates free water diffusion from tissue-contaminated signals, providing more accurate temperature estimates.
 
-It is designed to be run on a High-Performance Computing (HPC) cluster using the Portable Batch System (PBS) for job scheduling.
+**Key Innovation**: Addresses the fundamental issue where CSF voxels contain both free water and tissue contamination, leading to biased temperature measurements in traditional monoexponential approaches.
+
+## 🚀 Quick Start
+```bash
+# Activate environment
+conda activate dwi_temperature
+
+# Full automated pipeline
+bash 00_pipeline_manager.sh
+
+# Stepwise execution (recommended for testing)
+bash run_preprocessing_only.sh
+bash run_dti_only.sh           # Auto-detects latest output
+bash run_analysis_only.sh      # Auto-detects latest output  
+bash run_reports_only.sh       # Auto-detects latest output
+```
 
 ## Key Features
 
--   **Automated Workflow:** Orchestrates the entire process from raw BIDS data to final reports using a single command.
--   **Robust Preprocessing:** Implements a state-of-the-art preprocessing pipeline including denoising, Gibbs ringing removal, distortion correction, and bias field correction.
--   **Advanced DWI Modeling:** Uses multi-shell, multi-tissue constrained spherical deconvolution (MSMT-CSD) with the dhollander algorithm for accurate tissue response function estimation.
--   **Flexible Analysis:** Allows for easy testing of different b-value combinations to assess the stability of temperature estimates.
--   **Comprehensive Reporting:** Generates detailed figures, statistical summaries, quality control metrics, and a final HTML report for easy interpretation of results.
--   **Efficient Scheduling:** Uses PBS job dependencies to ensure a smooth, sequential execution of pipeline stages.
--   **Reproducibility:** All parameters and software versions are managed through a configuration file and conda environment.
+### 🔬 **Advanced Temperature Modeling**
+- **Bi-exponential diffusion model**: Separates free water from tissue contamination
+- **Automatic model selection**: Falls back to monoexponential if bi-exponential fails
+- **DTI integration**: Uses fractional anisotropy (FA) for validation and tissue characterization
 
-## Pipeline Workflow
+### 🔧 **Automated Workflow**
+- **Single command execution**: Complete pipeline from BIDS data to final reports
+- **Stepwise execution**: Individual stages for testing and debugging
+- **Automatic output tracking**: No manual directory management required
+- **Smart job dependencies**: PBS scheduling with proper dependency chains
 
-The pipeline is managed by `00_pipeline_manager.sh` and proceeds in three main stages, each submitted as a dependent PBS job:
+### 📊 **Robust Analysis Pipeline**
+- **State-of-the-art preprocessing**: Denoising, distortion correction, bias field correction
+- **Multi-shell analysis**: MSMT-CSD with dhollander algorithm
+- **Flexible b-value testing**: Multiple b-value combinations for stability assessment
+- **Comprehensive quality control**: Detailed metrics and visualizations
 
-1.  **Preprocessing (`01_run_preprocessing.sh` -> `02_preprocess_subject.py`)**
-    -   Converts BIDS data to MRtrix format.
-    -   Performs denoising and Gibbs ringing removal.
-    -   Runs distortion and eddy-current correction using FSL's `eddy`.
-    -   Performs ANTs-based bias field correction.
-    -   Upsamples data to a standard voxel size (1.5mm isotropic).
-    -   Estimates tissue response functions (WM, GM, CSF) using the dhollander algorithm.
-    -   Performs MSMT-CSD and intensity normalization (`mtnormalise`).
-    -   **Final Outputs:** Preprocessed DWI, tissue maps (`wmfod_norm.mif`, `gm_norm.mif`, `csf_norm.mif`), and brain masks.
+### 📈 **Comprehensive Reporting**
+- **HTML reports**: Interactive visualizations and statistical summaries
+- **Model comparisons**: Side-by-side mono vs bi-exponential results
+- **Quality metrics**: Fitting quality, parameter distributions, stability analysis
 
-2.  **Temperature Calculation (`03_run_bvalue_sweep.sh` -> `04_calculate_temperature.py`)**
-    -   This stage runs *in parallel* for each b-value combination specified in the configuration file.
-    -   For each combination:
-        -   Calculates an Apparent Diffusion Coefficient (ADC) map.
-        -   Generates a CSF mask using either the normalized CSF tissue map or ADC thresholding.
-        -   Calculates a temperature map from the ADC values within the CSF mask.
-        -   Generates statistics, quality control metrics, and a summary visualization.
+## Pipeline Architecture
 
-3.  **Reporting & Visualization (`07_generate_reports.sh` -> `05_create_histograms.py` & `06_comprehensive_analysis.py`)**
-    -   **Histograms:** Creates detailed histogram plots for each individual analysis run.
-    -   **Comprehensive Report:** Aggregates results from all analysis runs, generates comparison plots (e.g., temperature vs. number of b-values), and creates a final summary HTML report.
+### Core Scripts (Logical Numbering)
+1. **00_pipeline_manager.sh** - Main orchestration script
+2. **01_run_preprocessing.sh + 02_preprocess_subject.py** - DWI preprocessing
+3. **03_run_dti.sh + 03_fit_tensor.py** - DTI analysis (for bi-exponential model)
+4. **04_run_bvalue_sweep.sh + 05_calculate_temperature.py** - Temperature estimation
+5. **08_generate_reports.sh + 06_comprehensive_analysis.py** - Report generation
+6. **09_analyze_stability.sh** - Temperature stability analysis
 
-## Prerequisites
+### Stepwise Execution Scripts
+- **run_preprocessing_only.sh** - Preprocessing stage only
+- **run_dti_only.sh** - DTI analysis only (auto-detects output dir)
+- **run_analysis_only.sh** - Temperature analysis only (auto-detects output dir)
+- **run_reports_only.sh** - Report generation only (auto-detects output dir)
+- **run_stability_only.sh** - Stability analysis only (auto-detects output dir)
 
-1.  **HPC Environment:** A Linux-based system with a PBS job scheduler.
-2.  **Software:**
-    -   Miniconda or Anaconda
-    -   MRtrix3 (and optionally the MRtrix3Tissue fork)
-    -   FSL
-3.  **Data:** DWI data organized according to the Brain Imaging Data Structure (BIDS) standard. The pipeline specifically expects DWI data with both AP and PA phase-encoding directions for distortion correction.
+### Utility Scripts
+- **get_latest_output.py** - Automatically finds most recent pipeline output
+- **validate_setup.py** - Validates pipeline configuration and environment
+- **pipeline_state.py** - Tracks and manages pipeline execution state
+- **check_bvalues.py** - Analyzes available b-values in BIDS data
 
-## Setup and Configuration
+## Temperature Models
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone <your-repo-url>
-    cd <your-repo-name>
-    ```
+### Bi-exponential Model (Recommended)
+```
+S(b) = S₀ × (f_free × exp(-b × D_free) + (1-f_free) × exp(-b × D_tissue))
+```
+- **D_free**: Free water diffusion (temperature-dependent)
+- **D_tissue**: Tissue diffusion (restricted)
+- **f_free**: Free water fraction
 
-2.  **Create Conda Environment:**
-    A `environment.yml` file should be created to ensure all Python dependencies are met.
-    ```yaml
-    # environment.yml
-    name: csf-temp-env
-    channels:
-      - defaults
-      - conda-forge
-    dependencies:
-      - python=3.9
-      - numpy
-      - pandas
-      - nibabel
-      - matplotlib
-      - seaborn
-      - scipy
-    ```
-    Create and activate the environment:
-    ```bash
-    conda env create -f environment.yml
-    conda activate csf-temp-env
-    ```
+**Temperature Calculation**: T(°C) = (A / (B + ln(D_free))) - 273.15
 
-3.  **Configure the Pipeline:**
-    Edit the `pipeline_config.json` file. This is the central control file for the pipeline.
+### Monoexponential Model (Original)
+```
+S(b) = S₀ × exp(-b × ADC)
+```
+**Temperature Calculation**: T(°C) = (A / (B + ln(ADC))) - 273.15
 
-    ```json
-    {
-        "subjects": [
-            "sub-00395"
-        ],
-        "paths": {
-            "base_output": "/g/data/hl36/cb4095/WAND/derivatives",
-            "bids_root": "/g/data/hl36/cb4095/WAND/bids",
-            "conda_env": "/path/to/your/miniconda3/envs/csf-temp-env",
-            "fsl_dir": "/apps/fsl/6.0.5.1",
-            "mrtrix3_bin": "/apps/mrtrix3/3.0.3/bin",
-            "mrtrix3tissue_bin": "/path/to/mrtrix3tissue/bin"
-        },
-        "bvalue_sets": [
-            [0, 200, 500, 1000],
-            [0, 200, 500, 2000],
-            [0, 500, 1000, 2000],
-            [0, 200, 500, 1000, 2000]
-        ],
-        "processing": {
-            "bvalue_tolerance": 50,
-            "csf_mask_method": "3tissue",
-            "csf_threshold": 0.07,
-            "adc_threshold_min": 0.0025,
-            "adc_threshold_max": 0.004,
-            "temperature_constants": {
-                "A": 2.2556,
-                "B": -10.428
+## Configuration
+
+The pipeline is controlled by `pipeline_config.json`:
+
+```json
+{
+    "paths": {
+        "bids_root": "/path/to/bids/data",
+        "base_output": "/path/to/output",
+        "conda_env": "/path/to/conda/envs/dwi_temperature"
+    },
+    "subjects": ["sub-01945"],
+    "bvalue_sets": [
+        [0, 200],
+        [0, 1200]
+    ],
+    "processing": {
+        "temperature_model": "biexponential",  // or "monoexponential"
+        "biexponential_model": {
+            "fit_dti": true,
+            "fa_range_for_fitting": [0.0, 0.4],
+            "d_free_bounds": [2.0e-3, 4.0e-3],
+            "d_tissue_bounds": [0.1e-3, 1.5e-3],
+            "initial_guess": {
+                "d_free": 3.0e-3,
+                "d_tissue": 0.7e-3,
+                "f_free": 0.7
             }
         }
     }
-    ```
+}
+```
 
-## How to Run the Pipeline
+## Prerequisites
 
-The entire pipeline is launched using the `00_pipeline_manager.sh` script.
+### System Requirements
+- **HPC Environment**: Linux-based system with PBS job scheduler
+- **Memory**: 32+ GB RAM recommended for bi-exponential fitting
+- **Storage**: ~10-20 GB per subject for full pipeline outputs
 
-**Standard Run (from scratch):**
-This will create a new timestamped output directory and run all stages from preprocessing to final reporting.
+### Software Dependencies
+```yaml
+# environment.yml
+name: dwi_temperature
+dependencies:
+  - python=3.9
+  - numpy
+  - scipy
+  - pandas
+  - nibabel
+  - matplotlib
+  - seaborn
+```
 
+### External Software
+- **MRtrix3**: Latest version with MSMT-CSD support
+- **FSL**: Version 6.0+ with eddy GPU support (recommended)
+- **ANTs**: For bias field correction
 
+### Data Requirements
+- **BIDS format**: DWI data in Brain Imaging Data Structure format
+- **Multi-shell**: Multiple b-values (recommended: 0, 200, 500, 1200, 2400+ s/mm²)
+- **Phase encoding**: Both AP and PA directions for distortion correction
+
+## Output Structure
+
+```
+output_directory/
+├── sub-<ID>/
+│   ├── dwi_preproc_unbiased.mif       # Preprocessed DWI
+│   ├── dwi_upsampled.mif              # Upsampled to 1.5mm
+│   ├── csf_norm.mif                   # CSF probability map
+│   ├── dti/                           # DTI analysis results
+│   │   ├── fa.mif                     # Fractional anisotropy
+│   │   ├── dti_stats.csv              # DTI quality metrics
+│   │   └── fa_visualization.png        # FA visualization
+│   ├── temperature_map_*.mif          # Temperature maps (per b-value set)
+│   ├── temperature_stats_*.csv        # Statistics (per analysis)
+│   ├── biexponential_analysis/        # Bi-exponential parameters
+│   │   ├── d_free_map.mif             # Free water diffusion
+│   │   ├── f_free_map.mif             # Free water fraction
+│   │   └── r_squared_map.mif          # Fitting quality
+│   ├── model_comparison/              # Model comparison results
+│   │   ├── temperature_difference.mif  # Bi-exp vs mono-exp
+│   │   └── comparison_statistics.csv   # Statistical comparison
+│   ├── histograms/                    # Individual analysis histograms
+│   └── comprehensive_report/          # Final HTML report
+│       ├── report.html                # Main interactive report
+│       └── all_statistics_combined.csv # Aggregated statistics
+├── logs/                              # Execution logs
+└── pipeline_config.json               # Configuration used
+```
+
+## Usage Examples
+
+### Standard Full Pipeline
+```bash
+# Configure subjects in pipeline_config.json
+bash 00_pipeline_manager.sh
+```
+
+### Stepwise Testing Workflow
+```bash
+# 1. Preprocessing
+bash run_preprocessing_only.sh
+
+# 2. DTI analysis (if using bi-exponential)
+bash run_dti_only.sh
+
+# 3. Temperature analysis
+bash run_analysis_only.sh
+
+# 4. Generate reports
+bash run_reports_only.sh
+
+# Helper: Check latest output
+python3 get_latest_output.py --list
+```
+
+### Model Comparison
+```bash
+# Run both models for comparison
+# 1. Set "temperature_model": "biexponential" in config
 bash 00_pipeline_manager.sh
 
-**Skipping Preprocessing**
+# 2. Check model_comparison/ directory for results
+```
 
-# You must provide the path to the existing output directory
-bash 00_pipeline_manager.sh --skip-preprocessing --output-dir /path/to/your/previous/output_dir
+## Quality Control
 
-**Output Structure**
+### Automatic Checks
+- **R² thresholding**: Bi-exponential fits with R² < 0.7 fall back to monoexponential
+- **Parameter bounds**: D_free and D_tissue constrained to physiological ranges
+- **FA validation**: Results cross-validated against tissue microstructure
 
-<output_dir>/
-├── <subject_id>/
-│   ├── dwi_preproc_unbiased.mif      # Main preprocessed DWI file
-│   ├── dwi_upsampled.mif           # Upsampled DWI
-│   ├── dwi_mask_upsampled.mif      # Final brain mask
-│   ├── wmfod_norm.mif              # Normalized WM FODs
-│   ├── gm_norm.mif                 # Normalized GM signal
-│   ├── csf_norm.mif                # Normalized CSF signal
-│   ├── adc_map_full_b_...mif       # ADC maps for each analysis
-│   ├── temperature_map_b_...mif    # Temperature maps for each analysis
-│   ├── temperature_stats_b_...csv  # Statistics for each analysis
-│   ├── temperature_values_b_...txt # Raw temperature values for each analysis
-│   ├── temperature_visualization_b_...png # Visualization for each analysis
-│   ├── histograms/                 # Directory for histogram plots
-│   │   ├── histogram_b_...png
-│   │   └── comparison_all_analyses.png
-│   └── comprehensive_report/       # Final aggregated report
-│       ├── comprehensive_analysis.png
-│       ├── all_statistics_combined.csv
-│       └── report.html             # The main HTML report
-├── pipeline_config.json            # A copy of the configuration used
-└── pipeline_metadata.json          # Metadata about the pipeline run
+### Manual Inspection
+- **FA visualization**: Check DTI quality in `dti/fa_visualization.png`
+- **Temperature maps**: Inspect spatial patterns in temperature outputs
+- **HTML reports**: Review comprehensive statistics and comparisons
 
-**Parameter Finetuning**
+## Scientific Background
 
-- In pipeline_config.json:
-bvalue_sets: This is the most important parameter for the analysis stage. Define different combinations of b-values to test their impact on the temperature estimate.
-bvalue_tolerance: The tolerance (in s/mm²) for matching b-values. Useful if your scanner produces slightly inexact b-values (e.g., 998 instead of 1000).
-csf_mask_method: Choose between '3tissue' (uses the normalized CSF map from MSMT-CSD) or 'adc_threshold' (uses a simple ADC value range).
-csf_threshold: The threshold for the normalized CSF map when csf_mask_method is '3tissue'. See detailed explanation below.
-adc_threshold_min/max: The ADC range (in mm²/s) for creating the CSF mask when csf_mask_method is 'adc_threshold'.
-temperature_constants: The A and B constants for the Le Bihan temperature equation: T(°C) = (A / (B + ln(ADC))) - 273.15. These are derived from the physical properties of water diffusion.
+### Temperature-Diffusion Relationship
+Water diffusion coefficient varies with temperature according to:
+```
+T(°C) = (A / (B + ln(D))) - 273.15
+```
+Where A = 2256.74, B = 4.39221 (calibrated constants)
 
-- In 02_preprocess_subject.py:
-Eddy Options (Line 167): eddy_options = ' --slm=linear --data_is_shelled'
---slm=linear: Assumes linear signal change for small head movements. Can be removed for more complex models if needed.
---data_is_shelled: Crucial for multi-shell data.
-Upsampling Voxel Size (Line 173): '-voxel', '1.5'
-The entire analysis is performed at 1.5mm isotropic resolution. You can change this value, but be aware it will significantly impact computation time and CSF partial voluming.
-Mask Upsampling Interpolation (Line 174): -interp linear
-Using linear interpolation for the mask before thresholding can provide a smoother result than nearest neighbor. You could change this to nearest.
-Mask Filtering (Line 175): maskfilter - median
-A median filter is applied to the upsampled mask to clean it up. You could add more erode or dilate steps here if your masks require more aggressive cleaning.
-- In 05_create_histograms.py:
-Physiological Range (Line 84): ax1.axvspan(35, 39, ...)
-This defines the shaded "plausible" physiological temperature range on the histograms. You can adjust these values based on your assumptions.
+### Partial Volume Problem
+In CSF voxels, signal contains:
+- **Free water**: Temperature-dependent diffusion
+- **Tissue contamination**: Temperature-independent restricted diffusion
 
+**Solution**: Bi-exponential model separates these components for accurate temperature estimation.
 
+## Troubleshooting
 
-"""
-"bvalue_sets": [
-        [0, 200],
-        [0, 500],
-        [0, 1200],
-        [0, 2400],
-        [0, 4000],
-        [0, 6000],
-        [0, 200, 500],
-        [0, 200, 500, 1200],
-        [0, 200, 500, 1200, 2400],
-        [0, 200, 500, 1200, 2400]
-    ]
-"""
+### Common Issues
+1. **Environment errors**: Ensure `conda activate dwi_temperature`
+2. **Memory issues**: Bi-exponential fitting requires substantial RAM
+3. **Convergence failures**: Check b-value distribution and data quality
+
+### Debug Commands
+```bash
+# Validate setup
+python validate_setup.py
+
+# Check b-values in data
+python check_bvalues.py
+
+# Monitor jobs
+watch -n 5 'qstat -u $USER'
+
+# Check logs
+tail -f logs/*.out
+```
+
+## References
+
+- Le Bihan D. (2007). The 'wet mind': water and functional neuroimaging. *Physics in Medicine & Biology*
+- Tournier JD, et al. (2019). MRtrix3: A fast, flexible and open software framework for medical image processing and visualisation. *NeuroImage*
+- This pipeline: Enhanced bi-exponential approach for partial volume correction
+
+## Repository Information
+
+- **GitHub**: https://github.com/CB9683/DWI_TEMPERATURE_HPC.git
+- **Main Branch**: `main` (original monoexponential)
+- **Development**: `develop-biexponential` (enhanced version)
+- **Version**: 2.0-biexponential
+
+---
+*Last Updated: August 2024*  
+*Pipeline Version: 2.0 (Bi-exponential Enhancement)*

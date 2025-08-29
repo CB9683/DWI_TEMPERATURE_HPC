@@ -35,7 +35,7 @@ cat << 'EOF' > pipeline_config.json
             "B": 4.39221
         }
     },
-    "subjects": ["sub-00395"],
+    "subjects": [],
     "bvalue_sets": [
         [0, 200],
         [0, 500],

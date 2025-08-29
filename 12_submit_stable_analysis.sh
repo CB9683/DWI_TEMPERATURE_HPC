@@ -25,8 +25,8 @@ set -e
 # --- USER-CONFIGURABLE VARIABLES ---
 # Fill in these details before submitting the job.
 
-# The subject ID you want to process.
-SUBJECT="sub-00395"
+# The subject ID you want to process (read from config file).
+SUBJECT=$(python3 -c "import json; print(json.load(open('pipeline_config.json'))['subjects'][0])")
 
 # The full path to the main output directory created by the pipeline manager.
 OUTPUT_DIR="/g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-07-21_20-28-51"
