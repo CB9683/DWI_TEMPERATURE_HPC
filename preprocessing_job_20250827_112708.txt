@@ -1,3 +1,0 @@
-Preprocessing submitted at: Wed Aug 27 11:27:08 AEST 2025
-Output directory: /g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-08-27_11-27-08
-Preprocessing job: 148012293.gadi-pbs

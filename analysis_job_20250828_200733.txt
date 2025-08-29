@@ -1,4 +1,0 @@
-Temperature analysis submitted at: Thu Aug 28 20:07:33 AEST 2025
-Output directory: /g/data/hl36/cb4095/WAND/derivatives/temp_pipeline_2025-08-27_11-27-08
-Subject: sub-01945
-Analysis job: 148128099.gadi-pbs
